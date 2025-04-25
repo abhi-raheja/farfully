@@ -10,7 +10,7 @@ export type User = {
 
 export type Column = {
   id: string;
-  type: 'demo' | 'feed' | 'profile' | 'notifications';
+  type: 'demo' | 'feed' | 'profile' | 'notifications' | 'channels' | 'search' | 'directMessages' | 'trending' | 'bookmarks';
   title: string;
   data?: any; // Refine this type as your data model grows
 };

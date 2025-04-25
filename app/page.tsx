@@ -2,28 +2,41 @@
 
 import Image from "next/image";
 import LoginButton from './components/LoginButton';
-import FeedColumn from './components/FeedColumn';
-import UserProfileColumn from './components/UserProfileColumn';
 import { FarcasterAuthKitProvider } from './components/FarcasterAuthKit';
 import { useAuth } from './hooks/useAuth';
 import Board from './components/Board';
 import Sidebar from './components/Sidebar';
 import { useAppStore } from './store/useAppStore';
+import ProfileModal from './components/ProfileModal';
+import { useState, useEffect } from 'react';
 
 function HomeContent() {
   // Our improved useAuth hook now handles both live and stored profiles
   const { isAuthenticated, profile } = useAuth();
   const addColumn = useAppStore((state) => state.addColumn);
+  const columns = useAppStore((state) => state.columns);
   const user = useAppStore((state) => state.user);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
-  function handleAddDemoColumn() {
-    addColumn({
-      id: `demo-${Date.now()}`,
-      type: 'demo',
-      title: `Demo Column ${Math.floor(Math.random()*1000)}`,
-      data: { message: 'Another placeholder column!' }
-    });
-  }
+  // Initialize columns when authenticated
+  useEffect(() => {
+    if (isAuthenticated && user?.fid && columns.length === 0) {
+      // Add default columns for a new user
+      addColumn({
+        id: `feed-${Date.now()}`,
+        type: 'feed',
+        title: 'Home Feed',
+        data: { feedType: 'home' }
+      });
+      
+      addColumn({
+        id: `profile-${Date.now()}`,
+        type: 'profile',
+        title: 'My Profile',
+        data: { fid: user.fid }
+      });
+    }
+  }, [isAuthenticated, user, addColumn, columns.length]);
 
   // Only show the board UI if authenticated
   if (!isAuthenticated || !user) {
@@ -41,95 +54,45 @@ function HomeContent() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-950">
-      <Sidebar onAddColumn={handleAddDemoColumn} />
-      <main className="flex-1 overflow-x-auto">
-        <Board />
-      </main>
-    </div>
-  );
-
-  // Extract FID from profile if available
-  const userFid = profile?.fid;
-  
-  // Log authentication state
-  console.log('Authentication state:', { isAuthenticated, userFid });
-  
-  return (
-    <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <header className="border-b border-gray-200 py-4">
-        <div className="container mx-auto px-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-purple-600">Farfully</h1>
-          <LoginButton />
-        </div>
-      </header>
-
+    <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
+      {/* Sidebar */}
+      <Sidebar onAddColumn={() => {
+        addColumn({
+          id: `demo-${Date.now()}`,
+          type: 'demo',
+          title: `Demo Column ${Math.floor(Math.random()*1000)}`,
+          data: { message: 'Another placeholder column!' }
+        });
+      }} />
+      
       {/* Main content */}
-      <main className="flex-1 container mx-auto px-4 py-12">
-        <div className="flex justify-center mb-12">
-          {/* Show profile if authenticated */}
-          {isAuthenticated && userFid ? (
-            <UserProfileColumn fid={userFid} />
-          ) : (
-            <div className="flex items-center justify-center h-64 text-lg text-gray-500 border rounded-lg bg-white dark:bg-zinc-900 w-full max-w-md shadow">
-              Log in to view your profile.
-            </div>
-          )}
-        </div>
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-4xl font-bold mb-6">Farcaster TweetDeck + Typefully</h2>
-          <p className="text-xl text-gray-600 mb-12">
-            A powerful client for Farcaster that combines TweetDeck-like views with post scheduling.
-          </p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left mb-12">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-xl font-semibold mb-3">Multi-column View</h3>
-              <p className="text-gray-600">
-                Customize your Farcaster experience with multiple columns. View your home feed, notifications, and user profiles all at once.
-              </p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-xl font-semibold mb-3">Post Scheduling</h3>
-              <p className="text-gray-600">
-                Write and schedule your casts for later. Perfect for planning content and maintaining a consistent presence.
-              </p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-xl font-semibold mb-3">Real-time Updates</h3>
-              <p className="text-gray-600">
-                Stay up to date with live updates to your feeds. Never miss an important cast again.
-              </p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-xl font-semibold mb-3">Enhanced Composing</h3>
-              <p className="text-gray-600">
-                Enjoy a rich editing experience with support for media attachments, thread creation, and more.
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex justify-center">
-            <LoginButton />
-          </div>
-        </div>
-      </main>
+      <div className="flex-1 overflow-hidden">
+        <Board />
+      </div>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-200 py-6 bg-gray-50">
-        <div className="container mx-auto px-4 text-center text-gray-500">
-          <p>© 2023 Farfully. A TweetDeck-like client for Farcaster.</p>
+      {/* Profile Modal */}
+      {showProfileModal && user && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-xl shadow-2xl max-w-2xl w-full border border-gray-800">
+            <ProfileModal open={showProfileModal} onClose={() => setShowProfileModal(false)} />
+          </div>
         </div>
-      </footer>
+      )}
     </div>
   );
 }
 
 export default function Home() {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  if (!isClient) {
+    return null; // Prevent hydration errors
+  }
+
   return (
     <FarcasterAuthKitProvider>
       <HomeContent />
