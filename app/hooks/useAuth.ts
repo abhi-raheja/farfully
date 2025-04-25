@@ -1,9 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useProfile } from '../components/FarcasterAuthKit';
 import { usePersistentAuth, StoredProfile } from './usePersistentAuth';
 import { useAppStore } from '../store/useAppStore';
+import { fetchNeynarProfile } from '../utils/fetchNeynarProfile';
+import { fetchServerProfile } from '../utils/fetchServerProfile';
+import { fetchMcpProfile } from '../utils/fetchMcpProfile';
+
+const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
 
 // Define the return type for useAuth
 export type AuthState = {
@@ -27,32 +32,140 @@ export function useAuth(): AuthState {
   
   // Update cookies when Farcaster auth changes
   const setUser = useAppStore((state) => state.setUser);
-
   const zustandUser = useAppStore((state) => state.user);
+  
+  // Ref to track if we're currently fetching the profile
+  const isFetchingProfile = useRef(false);
+  // Ref to track if we've already fetched the rich profile
+  const hasRichProfile = useRef(false);
 
   useEffect(() => {
     // Only proceed if authenticated and profile is valid
     let profileToStore = null;
     if (fcIsAuthenticated && fcProfile && typeof fcProfile.fid === 'number') {
-      profileToStore = {
-        fid: fcProfile.fid,
-        username: fcProfile.username || '',
-        displayName: fcProfile.displayName || '',
-        pfpUrl: fcProfile.pfpUrl
-      };
+      profileToStore = fcProfile;
     } else if (cookieIsAuthenticated && cookieProfile && typeof cookieProfile.fid === 'number') {
-      profileToStore = {
-        fid: cookieProfile.fid,
-        username: cookieProfile.username || '',
-        displayName: cookieProfile.displayName || '',
-        pfpUrl: cookieProfile.pfpUrl
-      };
+      profileToStore = cookieProfile;
     }
     if (!profileToStore) return;
-    // Only update Zustand if authenticated and user actually changed
-    if ((fcIsAuthenticated || cookieIsAuthenticated) && profileToStore && JSON.stringify(zustandUser) !== JSON.stringify(profileToStore)) {
-      setUser(profileToStore);
-    }
+
+    // Try to fetch the full Neynar profile if FID is available
+    const fetchFullProfile = async () => {
+      // Check if we're already fetching or have a rich profile
+      if (isFetchingProfile.current) {
+        console.log('[useAuth] Already fetching profile, skipping');
+        return;
+      }
+      
+      // Check if we already have a rich profile with follower/following counts
+      if (hasRichProfile.current && zustandUser && 
+          zustandUser.follower_count !== undefined && 
+          zustandUser.following_count !== undefined) {
+        console.log('[useAuth] Already have rich profile, skipping fetch');
+        return;
+      }
+      
+      // Set fetching flag
+      isFetchingProfile.current = true;
+      
+      if (profileToStore.fid) {
+        console.log('[useAuth] Fetching rich profile for FID:', profileToStore.fid);
+        
+        // Try the MCP server first (most reliable method)
+        try {
+          console.log('[useAuth] Trying MCP server fetch...');
+          const richProfile = await fetchMcpProfile(profileToStore.fid);
+          console.log('[useAuth] MCP fetch successful!');
+          console.log('[useAuth] Rich profile data keys:', Object.keys(richProfile));
+          console.log('[useAuth] Has follower_count:', richProfile.follower_count !== undefined);
+          console.log('[useAuth] Has following_count:', richProfile.following_count !== undefined);
+          console.log('[useAuth] Has verified_accounts:', !!richProfile.verified_accounts);
+          
+          // Store the rich profile in Zustand
+          setUser(richProfile);
+          // Mark that we have a rich profile
+          hasRichProfile.current = true;
+          // Reset fetching flag
+          isFetchingProfile.current = false;
+          return; // Exit early if successful
+        } catch (mcpError) {
+          console.warn('[useAuth] MCP fetch failed:', mcpError);
+          // Continue to fallback methods
+        }
+        
+        // Make direct fetch to our server-side API route as fallback
+        try {
+          console.log('[useAuth] Falling back to server API route...');
+          const response = await fetch(`/api/neynar/profile?fid=${profileToStore.fid}`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache, no-store'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.user) {
+              console.log('[useAuth] Server API fetch successful!');
+              console.log('[useAuth] Rich profile data keys:', Object.keys(data.user));
+              setUser(data.user);
+              hasRichProfile.current = true;
+              isFetchingProfile.current = false;
+              return; // Exit early if successful
+            } else {
+              console.warn('[useAuth] Server API response missing user data:', data);
+            }
+          } else {
+            console.warn('[useAuth] Server API fetch failed:', response.status, response.statusText);
+          }
+        } catch (serverError) {
+          console.warn('[useAuth] Server API fetch error:', serverError);
+        }
+        
+        // Try the utility functions as additional fallbacks
+        try {
+          console.log('[useAuth] Trying fetchServerProfile utility...');
+          const richProfile = await fetchServerProfile(profileToStore.fid);
+          console.log('[useAuth] fetchServerProfile successful!');
+          setUser(richProfile);
+          hasRichProfile.current = true;
+          isFetchingProfile.current = false;
+          return; // Exit early if successful
+        } catch (serverError) {
+          console.warn('[useAuth] fetchServerProfile failed:', serverError);
+        }
+
+        // Try client-side fetch as a last resort
+        if (NEYNAR_API_KEY) {
+          try {
+            console.log('[useAuth] Last resort: client-side fetch...');
+            const richProfile = await fetchNeynarProfile(profileToStore.fid, NEYNAR_API_KEY);
+            console.log('[useAuth] Client-side fetch successful!');
+            setUser(richProfile);
+            hasRichProfile.current = true;
+            isFetchingProfile.current = false;
+            return; // Exit early if successful
+          } catch (e) {
+            console.warn('[useAuth] Client-side fetch failed:', e);
+          }
+        }
+
+        // If all fetch attempts failed, use the basic profile
+        console.log('[useAuth] All fetch attempts failed, using basic profile');
+        setUser(profileToStore);
+      } else {
+        console.log('[useAuth] No FID available, using basic profile');
+        setUser(profileToStore);
+      }
+      
+      // Always reset the fetching flag at the end
+      isFetchingProfile.current = false;
+    };
+
+    // Always attempt to fetch the rich Neynar profile after authentication
+    fetchFullProfile();
+
     // Only save to cookies if Farcaster profile is new
     if (fcIsAuthenticated && fcProfile) {
       const profilesAreEqual = cookieProfile &&

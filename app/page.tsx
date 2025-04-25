@@ -7,12 +7,14 @@ import UserProfileColumn from './components/UserProfileColumn';
 import { FarcasterAuthKitProvider } from './components/FarcasterAuthKit';
 import { useAuth } from './hooks/useAuth';
 import Board from './components/Board';
+import Sidebar from './components/Sidebar';
 import { useAppStore } from './store/useAppStore';
 
 function HomeContent() {
   // Our improved useAuth hook now handles both live and stored profiles
   const { isAuthenticated, profile } = useAuth();
   const addColumn = useAppStore((state) => state.addColumn);
+  const user = useAppStore((state) => state.user);
 
   function handleAddDemoColumn() {
     addColumn({
@@ -23,9 +25,30 @@ function HomeContent() {
     });
   }
 
-  // Debug the profile object to understand its structure
-  console.log('Profile from useAuth:', profile);
-  
+  // Only show the board UI if authenticated
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-950 text-white">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Welcome to Farfully</h2>
+          <p className="text-gray-400 mb-6">Sign in to start using your TweetDeck-style board.</p>
+          <div className="flex justify-center">
+            <LoginButton />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-950">
+      <Sidebar onAddColumn={handleAddDemoColumn} />
+      <main className="flex-1 overflow-x-auto">
+        <Board />
+      </main>
+    </div>
+  );
+
   // Extract FID from profile if available
   const userFid = profile?.fid;
   

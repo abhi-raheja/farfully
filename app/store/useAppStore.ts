@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 
 export type User = {
-  fid: number;
-  username: string;
-  displayName: string;
+  fid?: number;
+  username?: string;
+  displayName?: string;
   pfpUrl?: string;
+  [key: string]: any; // allow extra fields from Farcaster/Neynar
 };
 
 export type Column = {
