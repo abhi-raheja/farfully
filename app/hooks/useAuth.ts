@@ -2,8 +2,15 @@
 
 import { useProfile } from '../components/FarcasterAuthKit';
 
+// Define the return type for useAuth
+export type AuthState = {
+  isAuthenticated: boolean;
+  profile: any; // Using any for now, will refine when we know the exact structure
+  signOut: () => void;
+};
+
 // A simple wrapper around useProfile to provide authentication functionality
-export function useAuth() {
+export function useAuth(): AuthState {
   const { isAuthenticated, profile } = useProfile();
 
   // Function to sign out (you can implement this when needed)

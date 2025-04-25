@@ -8,7 +8,15 @@ import { FarcasterAuthKitProvider } from './components/FarcasterAuthKit';
 import { useAuth } from './hooks/useAuth';
 
 function HomeContent() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, profile } = useAuth();
+  
+  // Debug the profile object to understand its structure
+  console.log('Profile from useAuth:', profile);
+  
+  // Extract FID from profile if available
+  // The profile structure might vary based on the auth provider
+  const userFid = profile ? (profile as any).fid : undefined;
+  
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header */}
@@ -22,8 +30,8 @@ function HomeContent() {
       {/* Main content */}
       <main className="flex-1 container mx-auto px-4 py-12">
         <div className="flex justify-center mb-12">
-          {isAuthenticated ? (
-            <UserProfileColumn fid={2878} />
+          {isAuthenticated && userFid ? (
+            <UserProfileColumn fid={userFid} />
           ) : (
             <div className="flex items-center justify-center h-64 text-lg text-gray-500 border rounded-lg bg-white dark:bg-zinc-900 w-full max-w-md shadow">
               Log in to view your profile.

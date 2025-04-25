@@ -1,12 +1,15 @@
 'use client';
 
 import { useAuth } from '../hooks/useAuth';
+import type { AuthState } from '../hooks/useAuth';
 import { SignInButton } from '@farcaster/auth-kit';
 
 export default function LoginButton() {
-  const { isAuthenticated, profile, signOut } = useAuth();
+  const { isAuthenticated, profile, signOut } = useAuth() as AuthState;
 
   if (isAuthenticated && profile) {
+    // Debug the profile structure
+    console.log('Auth profile:', profile);
     return (
       <div className="flex items-center gap-2">
         {profile.pfpUrl && (
