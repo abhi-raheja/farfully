@@ -8,14 +8,17 @@ import { FarcasterAuthKitProvider } from './components/FarcasterAuthKit';
 import { useAuth } from './hooks/useAuth';
 
 function HomeContent() {
+  // Our improved useAuth hook now handles both live and stored profiles
   const { isAuthenticated, profile } = useAuth();
   
   // Debug the profile object to understand its structure
   console.log('Profile from useAuth:', profile);
   
   // Extract FID from profile if available
-  // The profile structure might vary based on the auth provider
-  const userFid = profile ? (profile as any).fid : undefined;
+  const userFid = profile?.fid;
+  
+  // Log authentication state
+  console.log('Authentication state:', { isAuthenticated, userFid });
   
   return (
     <div className="flex flex-col min-h-screen">
@@ -30,6 +33,7 @@ function HomeContent() {
       {/* Main content */}
       <main className="flex-1 container mx-auto px-4 py-12">
         <div className="flex justify-center mb-12">
+          {/* Show profile if authenticated */}
           {isAuthenticated && userFid ? (
             <UserProfileColumn fid={userFid} />
           ) : (
