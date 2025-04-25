@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useProfile } from '../components/FarcasterAuthKit';
 import { usePersistentAuth, StoredProfile } from './usePersistentAuth';
+import { useAppStore } from '../store/useAppStore';
 
 // Define the return type for useAuth
 export type AuthState = {
@@ -25,36 +26,61 @@ export function useAuth(): AuthState {
   } = usePersistentAuth();
   
   // Update cookies when Farcaster auth changes
+  const setUser = useAppStore((state) => state.setUser);
+
+  const zustandUser = useAppStore((state) => state.user);
+
   useEffect(() => {
-    if (!fcIsAuthenticated || !fcProfile) return;
-    // Only save to cookies if the Farcaster profile is different from the cookie profile
-    const profileToStore = {
-      fid: fcProfile.fid,
-      username: fcProfile.username,
-      displayName: fcProfile.displayName,
-      pfpUrl: fcProfile.pfpUrl
-    };
-    const profilesAreEqual = cookieProfile &&
-      cookieProfile.fid === profileToStore.fid &&
-      cookieProfile.username === profileToStore.username &&
-      cookieProfile.displayName === profileToStore.displayName &&
-      cookieProfile.pfpUrl === profileToStore.pfpUrl;
-    if (!profilesAreEqual) {
-      console.log('[useAuth] Farcaster authenticated, saving profile to cookies:', fcProfile);
-      saveAuth(true, profileToStore);
+    // Only proceed if authenticated and profile is valid
+    let profileToStore = null;
+    if (fcIsAuthenticated && fcProfile && typeof fcProfile.fid === 'number') {
+      profileToStore = {
+        fid: fcProfile.fid,
+        username: fcProfile.username || '',
+        displayName: fcProfile.displayName || '',
+        pfpUrl: fcProfile.pfpUrl
+      };
+    } else if (cookieIsAuthenticated && cookieProfile && typeof cookieProfile.fid === 'number') {
+      profileToStore = {
+        fid: cookieProfile.fid,
+        username: cookieProfile.username || '',
+        displayName: cookieProfile.displayName || '',
+        pfpUrl: cookieProfile.pfpUrl
+      };
     }
-  }, [fcIsAuthenticated, fcProfile, saveAuth, cookieProfile]);
-  
+    if (!profileToStore) return;
+    // Only update Zustand if authenticated and user actually changed
+    if ((fcIsAuthenticated || cookieIsAuthenticated) && profileToStore && JSON.stringify(zustandUser) !== JSON.stringify(profileToStore)) {
+      setUser(profileToStore);
+    }
+    // Only save to cookies if Farcaster profile is new
+    if (fcIsAuthenticated && fcProfile) {
+      const profilesAreEqual = cookieProfile &&
+        cookieProfile.fid === fcProfile.fid &&
+        cookieProfile.username === fcProfile.username &&
+        cookieProfile.displayName === fcProfile.displayName &&
+        cookieProfile.pfpUrl === fcProfile.pfpUrl;
+      if (!profilesAreEqual) {
+        console.log('[useAuth] Farcaster authenticated, saving profile to cookies:', fcProfile);
+        saveAuth(true, profileToStore);
+      }
+    }
+  }, [fcIsAuthenticated, fcProfile, cookieIsAuthenticated, cookieProfile, saveAuth, setUser, zustandUser]);
+
   // Function to sign out
   const signOut = () => {
-    console.log('[useAuth] Signing out, clearing cookies and Farcaster state.');
+    console.log('[useAuth] signOut called');
     // Clear cookies
     clearAuth();
+    console.log('[useAuth] clearAuth called');
+    // Clear Zustand user state
+    setUser(null);
+    console.log('[useAuth] setUser(null) called');
     // Also clear any Farcaster auth state from localStorage
     if (typeof window !== 'undefined') {
       localStorage.removeItem('farcaster-auth-state');
+      console.log('[useAuth] localStorage cleared');
     }
-    // Reload the page
     window.location.reload();
   };
   

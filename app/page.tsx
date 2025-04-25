@@ -6,11 +6,23 @@ import FeedColumn from './components/FeedColumn';
 import UserProfileColumn from './components/UserProfileColumn';
 import { FarcasterAuthKitProvider } from './components/FarcasterAuthKit';
 import { useAuth } from './hooks/useAuth';
+import Board from './components/Board';
+import { useAppStore } from './store/useAppStore';
 
 function HomeContent() {
   // Our improved useAuth hook now handles both live and stored profiles
   const { isAuthenticated, profile } = useAuth();
-  
+  const addColumn = useAppStore((state) => state.addColumn);
+
+  function handleAddDemoColumn() {
+    addColumn({
+      id: `demo-${Date.now()}`,
+      type: 'demo',
+      title: `Demo Column ${Math.floor(Math.random()*1000)}`,
+      data: { message: 'Another placeholder column!' }
+    });
+  }
+
   // Debug the profile object to understand its structure
   console.log('Profile from useAuth:', profile);
   
